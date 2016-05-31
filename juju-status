@@ -1,0 +1,246 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import json
+import sys
+from subprocess import check_output
+
+from common.tabulate import tabulate, _strip_invisible
+from common.termcolor import colored, RESET
+
+DEFAULT_OPTS='unit.workload unit.juju unit.address unit.message \
+service.status service.exposed \
+relations \
+machine.state machine.dns machine.series'
+
+colors = {
+    'service.status': {
+        'blocked': 'red',
+        'maintenance': 'blue',
+    },
+    'unit.workload': {
+        'maintenance': 'blue',
+        'blocked': 'red',
+    },
+    'unit.juju': {
+        'allocating': 'blue',
+        'executing': 'blue',
+    }
+}
+
+def colorize(path, item):
+    if path not in colors:
+        return item
+    if item not in colors[path]:
+        return item
+    return colored(item, colors[path][item])
+
+def main():
+    if len(sys.argv) == 1:
+        sys.argv[1:] = DEFAULT_OPTS.split(' ')
+    output = check_output('juju status --format json', shell=True)
+    data = json.loads(output)
+    units = [['Unit']]
+    services = [['Service']]
+    machines = [['Machine']]
+    relations = [['Relation', 'Service 1', 'Service 2']]
+
+    header = services[0]
+    for service, d in data['services'].iteritems():
+        item = [service]
+        for arg in sys.argv[1:]:
+            if arg == 'service.charm':
+                if 'Charm' not in header:
+                    header.append('Charm')
+                try:
+                    item.append(colorize('service.charm', d['charm']))
+                except:
+                    item.append('')
+            if arg == 'service.exposed':
+                if 'Exposed' not in header:
+                    header.append('Exposed')
+                try:
+                    item.append(colorize('service.exposed', str(d['exposed']).lower()))
+                except:
+                    item.append('')
+            if arg == 'service.status':
+                if 'Status' not in header:
+                    header.append('Status')
+                try:
+                    item.append(colorize('service.status', d['service-status']['current']))
+                except:
+                    item.append('')
+        services.append(item)
+    services[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
+
+    header = relations[0]
+    for service, d in data['services'].iteritems():
+        if 'relations' not in d:
+            continue
+        for relation, rd in d['relations'].iteritems():
+            for service2 in rd:
+                item = [relation, service, service2]
+                relations.append([relation, service, service2])
+    relations[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
+
+    def do_unit(key, value):
+        item = [key]
+        for arg in sys.argv[1:]:
+            if arg == 'unit.workload':
+                if 'Workload' not in header:
+                    header.append('Workload')
+                try:
+                    item.append(colorize('unit.workload', value['workload-status']['current']))
+                except:
+                    item.append('')
+            if arg == 'unit.juju':
+                if 'Juju' not in header:
+                    header.append('Juju')
+                try:
+                    item.append(colorize('unit.juju', value['juju-status']['current']))
+                except:
+                    item.append('')
+            if arg == 'unit.machine':
+                if 'Machine' not in header:
+                    header.append('Machine')
+                try:
+                    item.append(colorize('unit.machine',value['machine']))
+                except:
+                    item.append('')
+            if arg == 'unit.ports':
+                if 'Ports' not in header:
+                    header.append('Ports')
+                try:
+                    item.append(colorize('unit.ports', ','.join(value['open-ports'])))
+                except:
+                    item.append('')
+            if arg == 'unit.address':
+                if 'Address' not in header:
+                    header.append('Address')
+                try:
+                    item.append(colorize('unit.address', value['public-address']))
+                except:
+                    item.append('')
+            if arg == 'unit.version':
+                if 'Version' not in header:
+                    header.append('Version')
+                try:
+                    item.append(colorize('unit.version', value['juju-status']['version']))
+                except:
+                    item.append('')
+            if arg == 'unit.message':
+                if 'Message' not in header:
+                    header.append('Message')
+                try:
+                    item.append(colorize('unit.message', value['workload-status']['message']))
+                except:
+                    item.append('')
+        return item
+
+    header = units[0]
+    for service, d in data['services'].iteritems():
+        if 'units' not in d:
+            continue
+        for unit, ud in d['units'].iteritems():
+            units.append(do_unit(unit, ud))
+            if 'subordinates' not in ud:
+                continue
+            for i, (subord, sd) in enumerate(ud['subordinates'].iteritems()):
+                prefix = '`0'
+                if i == len(ud['subordinates']) - 1:
+                    prefix = '`1'
+                units.append(do_unit(prefix + subord, sd))
+    units[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
+
+    header = machines[0]
+    for machine, d in data['machines'].iteritems():
+        item = [machine]
+        for arg in sys.argv[1:]:
+            if arg == 'machine.state':
+                if 'State' not in header:
+                    header.append('State')
+                try:
+                    item.append(colorize('machine.state', d['juju-status']['current']))
+                except:
+                    item.append('')
+            if arg == 'machine.dns':
+                if 'DNS' not in header:
+                    header.append('DNS')
+                try:
+                    item.append(colorize('machine.dns', d['dns-name']))
+                except:
+                    item.append('')
+            if arg == 'machine.instance':
+                if 'Instance' not in header:
+                    header.append('Instance')
+                try:
+                    item.append(colorize('instance.id', d['instance-id']))
+                except:
+                    item.append('')
+            if arg == 'machine.series':
+                if 'Series' not in header:
+                    header.append('Series')
+                try:
+                    item.append(colorize('machine.series', d['series']))
+                except:
+                    item.append('')
+        machines.append(item)
+    machines[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
+
+    setm = setu = sets = setr = False
+    table = []
+    for arg in sys.argv[1:]:
+        if arg.startswith('machine.') and not setm:
+            table += machines
+            setm = True
+        if arg.startswith('service.') and not sets:
+            table += services
+            sets = True
+        if arg.startswith('unit.') and not setu:
+            table += units
+            setu = True
+        if arg.startswith('relation') and not setr:
+            table += relations
+            setr = True
+    
+    tl = max(len(r) for r in table)
+    for row in table:
+        while len(row) < tl:
+            row.append('')
+    
+    columns = int(check_output(['stty', 'size']).split()[1])
+    out = tabulate(table, tablefmt='plain')
+    for line in out.split('\n'):
+        line = line.encode('utf-8')
+        line = line.replace('`0', '├─')
+        line = line.replace('`1', '└─')
+        lout = ''
+        mode = 'vis'
+        count = 1
+        for c in line:
+            if c == '\x1b':
+                mode = 'invis'
+                lout += c
+                continue
+            if mode == 'invis' and c == 'm':
+                mode = 'vis'
+                lout += c
+                continue
+            if mode == 'invis':
+                lout += c
+                continue
+            if count > columns - 2:
+                if count > columns:
+                    continue
+                lout += '.'
+                count += 1
+                continue
+            lout += c
+            count += 1
+        print lout
+        
+
+if __name__ == '__main__':
+    main()
+    
+
