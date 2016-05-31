@@ -27,4 +27,4 @@
 
 * To use with `watch`, use `watch --color`.
 * `juju-status` won't wrap. It truncate lines and adds `..` to the end to indicate there's more to see.
-
+* Items will be ordered according the the order in which you provide arguments, hierarchically.
