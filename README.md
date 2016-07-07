@@ -7,9 +7,9 @@
 
 ## Options
 
-* service.charm
-* service.exposed
-* service.status
+* app.charm
+* app.exposed
+* app.status
 * unit.workload
 * unit.juju
 * unit.machine

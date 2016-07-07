@@ -9,12 +9,12 @@ from common.tabulate import tabulate, _strip_invisible
 from common.termcolor import colored, RESET
 
 DEFAULT_OPTS='unit.workload unit.juju unit.address unit.message \
-service.status service.exposed \
+app.status app.exposed \
 relations \
 machine.state machine.dns machine.series'
 
 colors = {
-    'service.status': {
+    'app.status': {
         'blocked': 'red',
         'maintenance': 'blue',
     },
@@ -41,46 +41,46 @@ def main():
     output = check_output('juju status --format json', shell=True)
     data = json.loads(output)
     units = [['Unit']]
-    services = [['Service']]
+    apps = [['Application']]
     machines = [['Machine']]
-    relations = [['Relation', 'Service 1', 'Service 2']]
+    relations = [['Relation', 'Application 1', 'Application 2']]
 
-    header = services[0]
-    for service, d in sorted(data['services'].items()):
-        item = [service]
+    header = apps[0]
+    for app, d in sorted(data['applications'].items()):
+        item = [app]
         for arg in sys.argv[1:]:
-            if arg == 'service.charm':
+            if arg == 'app.charm':
                 if 'Charm' not in header:
                     header.append('Charm')
                 try:
-                    item.append(colorize('service.charm', d['charm']))
+                    item.append(colorize('app.charm', d['charm']))
                 except:
                     item.append('')
-            if arg == 'service.exposed':
+            if arg == 'app.exposed':
                 if 'Exposed' not in header:
                     header.append('Exposed')
                 try:
-                    item.append(colorize('service.exposed', str(d['exposed']).lower()))
+                    item.append(colorize('app.exposed', str(d['exposed']).lower()))
                 except:
                     item.append('')
-            if arg == 'service.status':
+            if arg == 'app.status':
                 if 'Status' not in header:
                     header.append('Status')
                 try:
-                    item.append(colorize('service.status', d['service-status']['current']))
+                    item.append(colorize('app.status', d['application-status']['current']))
                 except:
                     item.append('')
-        services.append(item)
-    services[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
+        apps.append(item)
+    apps[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
 
     header = relations[0]
-    for service, d in sorted(data['services'].items()):
+    for app, d in sorted(data['applications'].items()):
         if 'relations' not in d:
             continue
         for relation, rd in sorted(d['relations'].items()):
-            for service2 in rd:
-                item = [relation, service, service2]
-                relations.append([relation, service, service2])
+            for app2 in rd:
+                item = [relation, app, app2]
+                relations.append([relation, app, app2])
     relations[0] = [colored(h, 'yellow', attrs=['bold', 'underline']) for h in header]
 
     def do_unit(key, value):
@@ -138,7 +138,7 @@ def main():
         return item
 
     header = units[0]
-    for service, d in sorted(data['services'].items()):
+    for app, d in sorted(data['applications'].items()):
         if 'units' not in d:
             continue
         for unit, ud in sorted(d['units'].items()):
@@ -193,8 +193,8 @@ def main():
         if arg.startswith('machine.') and not setm:
             table += machines
             setm = True
-        if arg.startswith('service.') and not sets:
-            table += services
+        if arg.startswith('app.') and not sets:
+            table += apps
             sets = True
         if arg.startswith('unit.') and not setu:
             table += units
@@ -202,12 +202,12 @@ def main():
         if arg.startswith('relation') and not setr:
             table += relations
             setr = True
-    
+
     tl = max(len(r) for r in table)
     for row in table:
         while len(row) < tl:
             row.append('')
-    
+
     columns = int(check_output(['stty', 'size']).split()[1])
     out = tabulate(table, tablefmt='plain')
     for line in out.split('\n'):
@@ -238,9 +238,7 @@ def main():
             lout += c
             count += 1
         print lout
-        
+
 
 if __name__ == '__main__':
     main()
-    
-
